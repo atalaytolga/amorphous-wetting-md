@@ -1,0 +1,10 @@
+{
+    "Lua.diagnostics.globals": [
+        "halmd",
+        "main",
+        "define_args",
+        "read_sample",
+        "log",
+        "setup"
+    ]
+}
