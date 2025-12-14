@@ -2,3 +2,5 @@
 *.log
 *.xyz
 *.out
+stash/
+.vscode/
