@@ -23,16 +23,23 @@ def get_snapshot(file_handle, group_name="all"):
     """
     Extracts the last frame of position, velocity, and box from H5MD file.
     """
-    if f"particles/{group_name}" not in file_handle:
-        print(f"Error: Group particles/{group_name} not found in file.")
-        sys.exit(1)
+    group_path = f"particles/{group_name}"
+
+    if group_path not in file_handle:
+        raise KeyError(f"Group '{group_path} not found in the simulation file.")
 
     p_group = file_handle[f"particles/{group_name}"]
 
-    # Get the last frame [-1]
-    pos = p_group["position"]["value"][-1]
-    vel = p_group["velocity"]["value"][-1]
-    box = p_group["box"]["edges"][()]
+    try:
+        pos = np.array(p_group["position"]["value"][-1])
+    except KeyError:
+        raise KeyError(f"Position data missing in {group_path}")
+
+    vel = None
+    if "velocity" in p_group:
+        vel = np.array(p_group["velocity"]["value"][-1])
+
+    box = np.array(p_group["box"]["edges"][()])
 
     return pos, vel, box
 
@@ -62,17 +69,17 @@ def main():
     box_diff = np.diag(box_vap)[:2] - np.diag(box_liq)[:2]
 
     if not np.allclose(box_diff, 0, atol=1e-5):
-            print("Error: XY dimensions of Liquid and Vapor boxes do not match!")
-            print(f"Liquid XY: {np.diag(box_liq)[:2]}")
-            print(f"Vapor XY:  {np.diag(box_vap)[:2]}")
-            sys.exit(1)
+            liq_dims = np.diag(box_liq[:2])
+            vap_dims = np.diag(box_vap[:2])
+            raise ValueError(
+               f"Error: XY dimensions of Liquid and Vapor boxes do not match!"
+               f"Liquid XY: {liq_dims}"
+               f"Vapor XY:  {vap_dims}"
+            )
 
 
     z_cut_min = - (args.width / 2.0)
     z_cut_max = + (args.width / 2.0)
-
-    # Use Vapor box as Master
-    L_master = np.diag(box_vap)
 
     pos_liq = wrap_pbc(pos_liq, box_vap)
     pos_vap = wrap_pbc(pos_vap, box_vap)
@@ -81,28 +88,28 @@ def main():
     z_vap_max = z_cut_max + args.buffer
 
     mask_vap = (pos_vap[:, 2] < z_vap_min) | (pos_vap[:, 2] > z_vap_max)
-    final_pos_vap = pos_vap[mask_vap]
-    final_vel_vap = vel_vap[mask_vap]
-
-
     mask_liq = (pos_liq[:, 2] >= z_cut_min) & (pos_liq[:, 2] <= z_cut_max)
-    final_pos_liq = pos_liq[mask_liq]
-    final_vel_liq = vel_liq[mask_liq]
 
+    final_pos_vap = pos_vap[mask_vap]
+    final_pos_liq = pos_liq[mask_liq]
 
     print(f"   Selected {len(final_pos_liq)} Liquid atoms")
     print(f"   Selected {len(final_pos_vap)} Vapor atoms")
 
-
     # Concatenate Positions
     combined_pos = np.concatenate((final_pos_liq, final_pos_vap), axis=0)
+    combined_vel = None
 
-    # Remove COM velocities:
-    final_vel_liq = remove_com_velocity(final_vel_liq)
-    final_vel_vap = remove_com_velocity(final_vel_vap)
+    if vel_vap is not None and vel_liq is not None:
+        final_vel_liq = vel_liq[mask_liq]
+        final_vel_vap = vel_vap[mask_vap]
 
-    # Concatenate Velocities
-    combined_vel = np.concatenate((final_vel_liq, final_vel_vap), axis=0)
+        # Remove COM velocities:
+        final_vel_liq = remove_com_velocity(final_vel_liq)
+        final_vel_vap = remove_com_velocity(final_vel_vap)
+
+        # Concatenate Velocities
+        combined_vel = np.concatenate((final_vel_liq, final_vel_vap), axis=0)
 
     # Create Species Tags (Change np.zeros to np.ones if two species are required)
     species_liq = np.zeros(len(final_pos_liq), dtype=np.int32)
@@ -110,7 +117,7 @@ def main():
     combined_species = np.concatenate((species_liq, species_vap), axis=0)
 
     print(f"Writing output to {args.out}...")
-        
+
     with h5py.File(args.out, 'w') as f_out:
         # Copy H5MD structural metadata from one of the source files
         with h5py.File(args.liq, "r") as source:
@@ -138,7 +145,7 @@ def main():
         p_vel["step"] = np.array([0], dtype=np.int32)
         p_vel["time"] = np.array([0], dtype=np.int32)
 
-        # Create species 
+        # Create species
         # TO-DO
 
         # Create Box
