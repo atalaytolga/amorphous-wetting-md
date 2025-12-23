@@ -9,7 +9,7 @@ function main(args)
 
     local length = {100, 100, (args.pore_width +15)}
     local dimension = #length
-    local pore_length = {length[1], length[2], args.pore_width}
+    local pore_length = {args.pore_length, args.pore_length, args.pore_width}
     local obstacle_density = args.obstacle_density
 
     -- create simulation domain with periodic boundary conditions
@@ -39,9 +39,9 @@ function main(args)
     }):set()
 
     local group_obstacles = mdsim.particle_groups.region({
-            particle = particle_obstacle, 
-            geometry = pore_geometry, 
-            selection = 'excluded', 
+            particle = particle_obstacle,
+            geometry = pore_geometry,
+            selection = 'excluded',
             label = 'obstacles',
             fluctuating = false
     })
@@ -62,7 +62,7 @@ function main(args)
     local wavevector_parallel = observables.utility.wavevector({
         box = box, wavenumber = grid
         , tolerance = args.wavevector.tolerance, max_count = args.wavevector.max_count
-        , filter = {1,1,0} 
+        , filter = {1,1,0}
     })
 
     -- Compute global density modes
@@ -88,7 +88,7 @@ function main(args)
 
 
     observables.phase_space({box = box, group = group_obstacles}):writer({
-        file = file, 
+        file = file,
         fields = {"position", "species"},
         every = 1
     })
@@ -100,13 +100,14 @@ end
 
 function define_args(parser)
     parser:add_argument("output,o", {type = "string"
-        , default ="/group/ag_compstatphys/data/tolga/walls/crystalline_walls_100_W{pore_width:g}_rho{obstacle_density:g}_ssf"
+        , default ="./data/raw/walls/crystalline_walls_L{pore_length}_W{pore_width:g}_rho{obstacle_density:g}"
         , help = "basename of output files"
     })
     parser:add_argument("overwrite", {type = "boolean", default = false, help = "overwrite output file"})
     parser:add_argument('pore_width', {type = 'number', default = 15, help = 'pore width'})
     parser:add_argument('obstacle_density', {type = 'number', default = 2.5, help = 'obstacle density'})
-    
+    parser:add_argument('pore_length', {type = 'number', default = 100, help = 'pore length'})
+
     local wavevector = parser:add_argument_group("wavevector", {help = "wavevector shells in reciprocal space"})
     observables.utility.wavevector.add_options(wavevector, {tolerance = 0.01, max_count = 7})
     observables.utility.semilog_grid.add_options(wavevector, {maximum = 100, decimation = 0})
