@@ -8,15 +8,10 @@ local writers = halmd.io.writers
 local utility = halmd.utility
 
 -- search definition files in the top-level path relative to the simulation script
-package.path = utility.abspath("../../definitions/?.lua;") .. package.path
-
+package.path = utility.abspath("../definitions") .. "/?.lua;" .. package.path
 
 local pair_potential = require("pair_potential")
 local slab_analysis = require("slab_analysis")
-local arg_writer = require("sidecar")
---local ssf_analysis = require("ssf_analysis")
-
-
 
 function read_sample(args)
     -- open H5MD file for reading
@@ -87,7 +82,7 @@ function main(args)
     pair_potential.create_pair_forces(args.cutoff, args.smoothing, particles, "fluid", "obstacles", box)
     --ssf_analysis.compute_ssf(args, box, groups, file)
 
-    
+
     local integrator = mdsim.integrators.verlet_nvt_boltzmann({
         box = box,
         particle = particles["fluid"],
@@ -95,7 +90,7 @@ function main(args)
         temperature = args.temperature,
         rate = args.rate,
     })
-    
+
     --[[ add velocity-Verlet integrator with Boltzmann distribution
     -- add velocity-Verlet integrator (NVE)
     mdsim.integrators.verlet({particle = particles["fluid"], box = box, timestep = args.timestep})
@@ -103,9 +98,9 @@ function main(args)
     local equilibrium_steps = math.ceil(args.equilibrium_time / args.timestep)
 
     -- write phase space trajectory to H5MD file
-    local phase_space_obstacles = observables.phase_space({box = box, group = groups["fluid"]}):writer({file = file, fields = {"position", "image", "species"}, every = equilibrium_steps})
-    local phase_space_fluid     = observables.phase_space({box = box, group = groups["obstacles"]}):writer({file = file, fields = {"position", "image", "species"}, every = args.sampling.trajectory})
-    
+    local phase_space_obstacles = observables.phase_space({box = box, group = groups["obstacles"]}):writer({file = file, fields = {"position", "image", "species"}, every = equilibrium_steps})
+    local phase_space_fluid     = observables.phase_space({box = box, group = groups["fluid"]}):writer({file = file, fields = {"position", "image", "species"}, every = args.sampling.trajectory})
+
     --write thermodynamic variables to H5MD file
     observables.thermodynamics({box = box, group = groups["fluid"], volume = pore_volume_func}):writer({file = file,
     fields = { "potential_energy", "pressure", "temperature" , "center_of_mass_velocity", "stress_tensor", "virial"},
@@ -128,7 +123,7 @@ function main(args)
         local wavevector_parallel = observables.utility.wavevector({
             box = box, wavenumber = grid
           , tolerance = args.wavevector.tolerance, max_count = args.wavevector.max_count
-          , filter = {1,1,0} 
+          , filter = {1,1,0}
         })
 
         local wavevector_perpendicular = observables.utility.wavevector({box = box,
@@ -162,7 +157,7 @@ function main(args)
         every = interval
         })
 
-        
+
         density_mode_perpendicular_global:writer({
             file = file,
             location = {"density_mode", "global_perpendicular", "bulk"},
@@ -190,7 +185,7 @@ function main(args)
         slab_analysis.slab_analysis(args.slab.width, args.slab.axis, particles["fluid"], wavevectors, length, file, box, args)
     end
 
-    
+
     -- sample initial state
     observables.sampler:sample()
     -- estimate remaining runtime
@@ -198,9 +193,9 @@ function main(args)
     -- run simulation
     observables.sampler:run(equilibrium_steps)
 
-    
 
-    
+
+
 end
 
 function define_args(parser)
@@ -225,7 +220,7 @@ function define_args(parser)
     parser:add_argument("timestep", {type = "number", default = 0.001, help = "integration time step"})
     parser:add_argument("smoothing", {type = "number", default = 0.005, help = "cutoff smoothing parameter"})
     parser:add_argument("cutoff", {type = "float32", default = 3, help = "potential cutoff radius"})
- 
+
 
     local sampling = parser:add_argument_group("sampling", {help = "sampling intervals (0: disabled)"})
     sampling:add_argument("trajectory", {type = "integer", default = 1000, help = "for trajectory"})

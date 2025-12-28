@@ -8,10 +8,11 @@ local writers = halmd.io.writers
 local utility = halmd.utility
 
 -- search definition files in the top-level path relative to the simulation script
-package.path = utility.abspath("../../definitions/?.lua;") .. package.path
+package.path = utility.abspath("../definitions") .. "/?.lua;" .. package.path
 
-local slab_analysis = require("slab_analysis")
+
 local pair_potential = require("pair_potential")
+local arg_writer = require("sidecar")
 
 
 function read_sample(args)
@@ -19,6 +20,9 @@ function read_sample(args)
     local location = utility.assert_kwarg(args, "location")
     local fields = args.fields      -- optional, see phase_space.reader()
     local step = -1                 -- use the last step stored in the file
+
+    --local sidecar = arg_writer.write_args_from_output(args)
+    --print("Writing args to " .. sidecar)
 
     -- open H5MD file for reading
     local file = readers.h5md({path = input})
@@ -67,10 +71,10 @@ function main(args)
 
     local dimension = #length
     local pore_length = {length[1], length[2], args.pore_width}
-    local pore_volume = numeric.prod(pore_length)
+    local pore_volume = 100*100*15.95
     local pore_volume_func = function() return pore_volume end
     local fluid_density = args.fluid_density
-    local wall_gap = 1.5
+    local wall_gap = 5
     local z_fraction = (args.pore_width - wall_gap) / length[3]
     local nparticle = math.ceil(pore_volume * fluid_density)
 
@@ -97,7 +101,7 @@ function main(args)
         particle = particle_fluid,
         temperature = args.temperature
     }):set()
-    
+
     local particle_dict = {
         obstacles = particle_obstacles,
         fluid = particle_fluid
@@ -116,10 +120,23 @@ function main(args)
         rate = args.rate,
     })
 
+
     -- H5MD file writer
     local file = writers.h5md({path = ("%s.h5"):format(args.output), overwrite = args.overwrite})
 
     local equilibrium_steps = math.ceil(args.equilibrium_time / args.timestep)
+
+    -- write phase space trajectory to H5MD file
+    local phase_space_obstacles = observables.phase_space({box = box, group = group_obstacles}):writer({file = file, fields = {"position", "image", "species", "velocity"}, every = equilibrium_steps})
+    local phase_space_fluid     = observables.phase_space({box = box, group = group_fluid}):writer({file = file, fields = {"position", "image", "species",  "velocity"}, every = args.sampling.trajectory})
+
+    --write thermodynamic variables to H5MD file
+    observables.thermodynamics({box = box, group = group_fluid, volume = pore_volume_func}):writer({file = file,
+    fields = { "potential_energy", "pressure", "temperature" , "center_of_mass_velocity", "stress_tensor", "virial"},
+    every = args.sampling.trajectory})
+
+
+
     -- sample initial state
     observables.sampler:sample()
     -- estimate remaining runtime
@@ -127,118 +144,12 @@ function main(args)
     -- run simulation
     observables.sampler:run(equilibrium_steps)
 
-    
-    -- write phase space trajectory to H5MD file
-    local phase_space_obstacles = observables.phase_space({box = box, group = group_obstacles}):writer({file = file, fields = {"position", "image", "species"}, every = production_steps})
-    local phase_space_fluid     = observables.phase_space({box = box, group = group_fluid}):writer({file = file, fields = {"position", "image", "species"}, every = args.sampling.trajectory})
-    
-    --thermodynamic variables
-    observables.thermodynamics({box = box, group = group_fluid, volume = pore_volume_func}):writer({file = file,
-    fields = { "potential_energy", "pressure", "temperature" , "center_of_mass_velocity", "stress_tensor", "virial"},
-    every = args.sampling.trajectory})
-
-
-
-    -- set up wavevectors, compute density modes and static structure factor
-    local interval = args.sampling.structure
-    if interval > 0 or args.sampling.correlation > 0 then
-        -- set up wavevector grid compatible with the periodic simulation box
-        local grid = args.wavevector.wavenumbers
-        if not grid then
-            grid = observables.utility.semilog_grid({
-                start = 2 * math.pi / numeric.max(box.length)
-              , stop = args.wavevector.maximum
-              , decimation = args.wavevector.decimation
-            }).value
-        end
-
-        local wavevector_parallel = observables.utility.wavevector({
-            box = box, wavenumber = grid
-          , tolerance = args.wavevector.tolerance, max_count = args.wavevector.max_count
-          , filter = {1,1,0} 
-        })
-
-        local wavevector_perpendicular = observables.utility.wavevector({box = box,
-        wavenumber = grid,
-        dense = true,
-        filter = {0,0,1}
-        })
-
-        local wavevectors = {
-            parallel = wavevector_parallel,
-            perpendicular = wavevector_perpendicular
-        }
-
-
-        -- Compute global density modes
-        local density_mode_parallel_global = observables.density_mode({
-            group = group_fluid,
-            wavevector = wavevectors["parallel"]
-        })
-
-        local density_mode_perpendicular_global = observables.density_mode({
-            group = group_fluid,
-            wavevector = wavevectors["perpendicular"]
-        })
-
-
-        -- Write global density modes
-        density_mode_parallel_global:writer({
-        file = file,
-        location = {"density_mode", "global_parallel"},
-        every = interval
-        })
-
-        
-        density_mode_perpendicular_global:writer({
-            file = file,
-            location = {"density_mode", "global_perpendicular"},
-            every = interval
-        })
-
-
-        -- Write global structure factors
-        observables.ssf({
-            density_mode = density_mode_parallel_global,
-            norm = group_fluid.size
-        }):writer({
-            file = file,
-            location = {"ssf", "global_parallel"},
-            every = interval
-        })
-        observables.ssf({
-            density_mode = density_mode_perpendicular_global,
-            norm = group_fluid.size
-        }):writer({
-            file = file,
-            location = {"ssf", "global_perpendicular"},
-            every = interval
-        })
-        slab_analysis.slab_analysis(args.slab.width, args.slab.axis, particle_fluid, wavevectors, length, file, box, args)
-    end
-
-    -- production run
-
-    local production_steps = math.ceil(args.production_time / args.timestep)
-
-    integrator.disconnect()
-
-    -- add velocity-Verlet integrator (NVE)
-    mdsim.integrators.verlet({particle = particle_fluid, box = box, timestep = args.timestep})
-
-    -- sample initial state
-    observables.sampler:sample()
-    -- estimate remaining runtime
-    observables.runtime_estimate({steps = production_steps})
-    -- run simulation
-    observables.sampler:run(production_steps)
-
 
 end
 
 function define_args(parser)
     parser:add_argument("output,o", {type = "string", action = parser.action.substitute_date_time
-        , default ="slit_pore_planar_walls_equilibration_D{pore_width:g}_rho{density:g}_T{temperature:.2f}_%Y%m%d_%H%M%S"
+        , default ="/group/ag_compstatphys/data/tolga/simulation/slit_pore__equilibration_D{pore_width:g}_rho{fluid_density:g}_T{temperature:.2f}_%Y%m%d_%H%M%S"
         , help = "basename of output files"
     })
 
@@ -258,18 +169,11 @@ function define_args(parser)
     parser:add_argument("timestep", {type = "number", default = 0.001, help = "integration time step"})
     parser:add_argument("smoothing", {type = "number", default = 0.005, help = "cutoff smoothing parameter"})
     parser:add_argument("cutoff", {type = "float32", default = 3, help = "potential cutoff radius"})
- 
+
 
     local sampling = parser:add_argument_group("sampling", {help = "sampling intervals (0: disabled)"})
-    sampling:add_argument("trajectory", {type = "integer", default = 1000, help = "for trajectory"})
-    sampling:add_argument("structure", {type = "integer", default = 1000, help = "for density modes, static structure factor"})
+    sampling:add_argument("trajectory", {type = "integer", default = 100000, help = "for trajectory"})
+    sampling:add_argument("structure", {type = "integer", default = 100000, help = "for density modes, static structure factor"})
     sampling:add_argument("correlation", {type = "integer", default = 100, help = "for correlation functions"})
-     
-    local wavevector = parser:add_argument_group("wavevector", {help = "wavevector shells in reciprocal space"})
-    observables.utility.wavevector.add_options(wavevector, {tolerance = 0.01, max_count = 7})
-    observables.utility.semilog_grid.add_options(wavevector, {maximum = 15, decimation = 0})
 
-    local slab = parser:add_argument_group("slab", {help = "ssf, density modes and observables over slabs along axis"})
-    slab:add_argument("width", {type = "number", default = 0.5, help = "number of slabs"})
-    slab:add_argument("axis", {type = "string", default = "z", help = "axis along slabs oriented"})
 end
