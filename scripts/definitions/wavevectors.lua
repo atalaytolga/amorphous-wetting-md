@@ -10,11 +10,11 @@ function M.create(args, box)
         return nil
     end
 
-    local grid = args.wavevectors.wavenumbers
+    local grid = args.wavevector.wavenumbers
     if not grid then
         grid = observables.utility.semilog_grid({
               start = 2 * math.pi / numeric.max(box.length)
-            , stop = args.wavevectors.maximum
+            , stop = args.wavevector.maximum
             , decimation = args.wavevector.decimation
         }).value
     end
