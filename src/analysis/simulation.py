@@ -45,7 +45,6 @@ class Simulation:
             dataset_path = f'thermo/slab_{i}/stress_tensor/value'
             if dataset_path in self._file:
                 cur_data = self._file[dataset_path]
-                # CRITICAL FIX: axis=0 averages over time (rows), keeping the 6 components
                 stress_tensor_sampling[i - 1] = np.mean(cur_data, axis=0)
         
         return stress_tensor_sampling
