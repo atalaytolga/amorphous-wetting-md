@@ -13,6 +13,7 @@ package.path = utility.abspath("../definitions") .. "/?.lua;" .. package.path
 local pair_potential = require("pair_potential")
 local slab_analysis = require("slab_analysis")
 local ssf_analysis = require("ssf_analysis")
+local wavevectors_mod = require("wavevectors")
 
 function read_sample(args)
     -- open H5MD file for reading
@@ -101,23 +102,24 @@ function main(args)
     fields = { "potential_energy", "pressure", "temperature" , "center_of_mass_velocity", "stress_tensor", "virial"},
     every = args.sampling.trajectory})
 
+    local wvs = wavevectors_mod.create(args, box)
+    if wvs then
+        ssf_analysis.compute_ssf(args, groups["fluid"], wvs, file)
 
-    local wavevectors = ssf_analysis.compute_ssf(args, box, groups["fluid"], file)
-    if args.sampling.structure > 0 then
-        slab_analysis.slab_analysis(
-              args.slab.width
-            , args.slab.axis
-            , particles["fluid"]
-            , wavevectors
-            , length
-            , file
-            , box
-            , args
-        )
+        if args.sampling.structure > 0 then
+            slab_analysis.slab_analysis(
+                  args.slab.width
+                , args.slab.axis
+                , particles["fluid"]
+                , wvs
+                , length
+                , file
+                , box
+                , args
+            )
+        end
     end
 
-
-    -- sample initial state
     observables.sampler:sample()
     -- estimate remaining runtime
     observables.runtime_estimate({steps = integration_steps})
