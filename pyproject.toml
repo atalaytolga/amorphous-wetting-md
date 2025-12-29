@@ -1,0 +1,32 @@
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amorphous_wetting"
+version = "0.1.0"
+description = "MD simulation framework for wetting analysis"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  { name = "Tolga Atalay", email = "recep.tolga.atalay@fu-berlin.de" },
+]
+classifiers = [
+    "Development Status :: Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy",
+    "h5py",
+    "matplotlib",
+]
+
+[project.scripts]
+generate-slab = "tools.create_vlv_slab:main"
+analyze-sim = "analysis.simulation:main"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
