@@ -1,7 +1,23 @@
+# Simulation Data
 *.h5
 *.log
 *.xyz
 *.out
-stash/
-.vscode/
 data/
+stash/
+
+# IDE Settings
+.vscode/
+.idea/
+.DS_Store
+
+# Python & Build system
+__pycache__/
+*.pyc
+build/
+dist/
+*.egg-info/
+venv/
+.venv/
+.pytest_cache/
+*.json
