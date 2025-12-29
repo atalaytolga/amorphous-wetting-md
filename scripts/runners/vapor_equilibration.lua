@@ -5,16 +5,17 @@ local observables = halmd.observables
 local writers = halmd.io.writers
 local utility = halmd.utility
 
+
 -- search definition files in the top-level path relative to the simulation script
-package.path = utility.abspath("../../?.lua;") .. package.path
-local definitions = { lennard_jones = require("definitions/lennard_jones") }
+package.path = utility.abspath("../definitions") .. "/?.lua;" .. package.path
+local definitions = { lennard_jones = require("lennard_jones") }
 
 function main(args)
-    local box_length = {20, 20, 100}
+    local box_length = {40, 40, 160}
     local dimension = #box_length
-    local vapor_density = 0.10
+    local vapor_density = args.density
     local volume = numeric.prod(box_length)
-    local num_particles = volume * vapor_density
+    local num_particles = math.ceil(volume * vapor_density)
 
     -- create simulation domain with periodic boundary conditions
     local simulation_box = mdsim.box({length = box_length})
@@ -95,12 +96,12 @@ function define_args(parser)
     parser:add_argument("random-seed", {type = "integer", action = parser.action.random_seed,
         help = "seed for random number generator"})
 
-    parser:add_argument("density", {type = "number", default = 0.75, help = "particle number density"})
+    parser:add_argument("density", {type = "float32", default = 0.75, help = "particle number density"})
 
     parser:add_argument("cutoff", {type = "float32", default = 3.5, help = "potential cutoff radius"})
     parser:add_argument("smoothing", {type = "number", default = 0.005, help = "cutoff smoothing parameter"})
     parser:add_argument("masses", {type = "vector", dtype = "number", default = {1}, help = "particle masses"})
-    parser:add_argument("temperature", {type = "number", default = 1.5, help = "initial system temperature"})
+    parser:add_argument("temperature", {type = "number", default = 0.8, help = "initial system temperature"})
     parser:add_argument("rate", {type = "number", default = 2, help = "heat bath collision rate"})
     parser:add_argument("time", {type = "number", default = 100, help = "integration time"})
     parser:add_argument("timestep", {type = "number", default = 0.001, help = "integration time step"})
