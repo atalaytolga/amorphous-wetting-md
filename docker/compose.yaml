@@ -1,0 +1,80 @@
+services:
+  halmd:
+    image: ${AWMD_DOCKER_IMAGE:-halmd}
+    build:
+      context: .
+      dockerfile: Dockerfile.halmd
+      args:
+        HALMD_REPOSITORY: ${HALMD_REPOSITORY:-https://github.com/halmd-org/halmd.git}
+        HALMD_REF: ${HALMD_REF:-testing}
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      HOME: /work
+      AWMD_BACKEND: docker
+      AWMD_DOCKER_IMAGE: ${AWMD_DOCKER_IMAGE:-halmd}
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: bash
+
+  halmd-position-shifting:
+    image: ${AWMD_DOCKER_IMAGE_POSITION_SHIFTING:-halmd:position-shifting}
+    build:
+      context: .
+      dockerfile: Dockerfile.halmd
+      args:
+        HALMD_REPOSITORY: ${HALMD_FORK_REPOSITORY:-https://github.com/atalaytolga/halmd.git}
+        HALMD_REF: ${HALMD_POSITION_SHIFTING_REF:-feature/position-shifting}
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      HOME: /work
+      AWMD_BACKEND: docker
+      AWMD_DOCKER_IMAGE: ${AWMD_DOCKER_IMAGE_POSITION_SHIFTING:-halmd:position-shifting}
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: bash
+
+  halmd-planar-wall-offset-update:
+    image: ${AWMD_DOCKER_IMAGE_PLANAR_WALL_OFFSET:-halmd:planar-wall-offset-update}
+    build:
+      context: .
+      dockerfile: Dockerfile.halmd
+      args:
+        HALMD_REPOSITORY: ${HALMD_FORK_REPOSITORY:-https://github.com/atalaytolga/halmd.git}
+        HALMD_REF: ${HALMD_PLANAR_WALL_OFFSET_REF:-feature/planar-wall-offset-update}
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      HOME: /work
+      AWMD_BACKEND: docker
+      AWMD_DOCKER_IMAGE: ${AWMD_DOCKER_IMAGE_PLANAR_WALL_OFFSET:-halmd:planar-wall-offset-update}
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: bash
+
+  halmd-npat-barostat-support:
+    image: ${AWMD_DOCKER_IMAGE_NPAT_BAROSTAT:-halmd:npat-barostat-support}
+    build:
+      context: .
+      dockerfile: Dockerfile.halmd
+      args:
+        HALMD_REPOSITORY: ${HALMD_FORK_REPOSITORY:-https://github.com/atalaytolga/halmd.git}
+        HALMD_REF: ${HALMD_NPAT_BAROSTAT_REF:-integration/npat-barostat-support}
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      HOME: /work
+      AWMD_BACKEND: docker
+      AWMD_DOCKER_IMAGE: ${AWMD_DOCKER_IMAGE_NPAT_BAROSTAT:-halmd:npat-barostat-support}
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: bash
